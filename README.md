@@ -232,3 +232,26 @@ WHERE t1.a BETWEEN t2.a - 1 AND t2.a + 1;
  5 | x,x  | 5
 (13 rows) */
 ```
+
+### 05. Subqueries and Correlation
+
+```sql
+SELECT 2 + (SELECT t.d AS _
+            FROM "T" as t
+            WHERE t.a = 2) AS "The Answer";
+/* # Output #
+ The Answer
+------------
+         42
+(1 row) */
+
+SELECT t1.*
+FROM "T" as t1
+WHERE t1.b <> (SELECT t2.b
+               FROM "T" AS t2
+               WHERE t1.a = t2.a);
+/* # Output #
+ a | b | c | d
+---+---+---+---
+(0 rows) */
+```
