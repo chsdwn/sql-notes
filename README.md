@@ -362,3 +362,80 @@ FROM (VALUES ('a', 1),
  a       |       1
 (2 rows) */
 ```
+
+### 07. Aggregates (ordered, filtered, unique)
+
+```sql
+SELECT COUNT(*) AS "#rows",
+       COUNT(t.d) AS "#d",
+       SUM(t.d) AS "sum(d)",
+       MAX(t.b) AS "max(b)",
+       bool_and(t.c) AS "bool_and(c)",
+       bool_or(t.d = 30) AS "bool_or(c=30)"
+FROM "T" as t
+WHERE true;
+/* # Output #
+ #rows | #d | sum(d) | max(b) | bool_and(c) | bool_or(c=30)
+-------+----+--------+--------+-------------+---------------
+     5 |  4 |    100 | y      | f           | t
+(1 row) */
+
+SELECT COUNT(*) AS "#rows",
+       COUNT(t.d) AS "#d",
+       SUM(t.d) AS "sum(d)",
+       MAX(t.b) AS "max(b)",
+       bool_and(t.c) AS "bool_and(c)",
+       bool_or(t.d = 30) AS "bool_or(c=30)"
+FROM "T" as t
+WHERE false; -- empty rows
+/* # Output #
+ #rows | #d | sum(d) | max(b) | bool_and(c) | bool_or(c=30)
+-------+----+--------+--------+-------------+---------------
+     0 |  0 |        |        |             |
+(1 row) */
+
+SELECT string_agg(t.a::text, ',' ORDER BY t.d) AS "all a"
+FROM "T" AS t;
+/* # Output #
+   all a
+-----------
+ 1,4,3,2,5
+(1 row) */
+
+SELECT SUM(t.d) FILTER (WHERE t.c) AS "sum(t.d WHERE t.c)",
+       SUM(t.d) AS "sum(t.d)"
+FROM "T" as t;
+/* # Output #
+ sum(t.d WHERE t.c) | sum(t.d)
+--------------------+----------
+                 50 |      100
+(1 row) */
+
+SELECT SUM(CASE WHEN t.c THEN t.d ELSE 0 END) AS "sum(t.d WHERE t.c)", -- 0 <=> NULL
+       SUM(t.d) AS "sum(t.d)"
+FROM "T" AS t;
+/* # Output #
+ sum(t.d WHERE t.c) | sum(t.d)
+--------------------+----------
+                 50 |      100
+(1 row) */
+
+SELECT SUM(t.d) FILTER (WHERE t.b = 'x') AS "sum('x')",
+       SUM(t.d) FILTER (WHERE t.b = 'y') AS "sum('y')",
+       SUM(t.d) FILTER (WHERE t.b NOT IN ('x', 'y')) AS "sum(not 'x' or 'y')"
+FROM "T" AS t;
+/* # Output #
+ sum('x') | sum('y') | sum(not 'x' or 'y')
+----------+----------+---------------------
+       40 |       60 |
+(1 row) */
+
+SELECT COUNT(DISTINCT t.c) AS "count of unique non-null t.c",
+       COUNT(t.c) AS "count of non-null t.c"
+FROM "T" AS t;
+/* # Output #
+ count of unique non-null t.c | count of non-null t.c
+------------------------------+-----------------------
+                            2 |                     5
+(1 row) */
+```
