@@ -439,3 +439,57 @@ FROM "T" AS t;
                             2 |                     5
 (1 row) */
 ```
+
+### 08. GROUP BY, grouping + aggregation, pseudo aggregate the()
+
+```sql
+SELECT t.b AS "b",
+       COUNT(*) AS "count",
+       SUM(t.d) AS "sum(d)",
+       bool_and(t.a % 2 = 0) AS "a is even",
+       string_agg(t.a::text, ';') AS "all a"
+FROM "T" AS t
+GROUP BY t.b; -- HAVING: acts like WHERE but after grouping
+/* # Output #
+ b | count | sum(d) | a is even | all a
+---+-------+--------+-----------+-------
+ y |     2 |     60 | t         | 2;4
+ x |     3 |     40 | f         | 1;3;5
+(2 rows) */
+
+SELECT t.b AS "b",
+       COUNT(*) AS "count",
+       SUM(t.d) AS "sum(d)",
+       bool_and(t.a % 2 = 0) AS "a is even",
+       string_agg(t.a::text, ';') AS "all a"
+FROM "T" AS t
+GROUP BY t.b
+HAVING COUNT(*) > 2;
+/* # Output #
+ b | count | sum(d) | a is even | all a
+---+-------+--------+-----------+-------
+ x |     3 |     40 | f         | 1;3;5
+(1 row) */
+
+SELECT t.a % 2 AS "a odd?",
+       COUNT(*) as "count"
+FROM "T" as t
+GROUP BY t.a % 2;
+/* # Output #
+ a odd? | count
+--------+-------
+      0 |     2
+      1 |     3
+(2 rows) */
+
+SELECT t.b AS "b",
+       t.a % 2 AS "a odd?"
+FROM "T" AS t
+GROUP BY t.b, t.a % 2;
+/* # Output #
+ b | a odd?
+---+--------
+ y |      0
+ x |      1
+(2 rows) */
+```
