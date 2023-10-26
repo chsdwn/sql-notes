@@ -255,3 +255,110 @@ WHERE t1.b <> (SELECT t2.b
 ---+---+---+---
 (0 rows) */
 ```
+
+### 06. ORDER BY/OFFSET/LIMIT/DISTINCT [ON]
+
+- ASC is default.
+- NULL is larger than any non-NULL value.
+
+```sql
+SELECT t.*
+FROM "T" AS t
+ORDER BY t.d ASC NULLS FIRST;
+/* # Output #
+ a | b | c | d
+---+---+---+----
+ 5 | x | t |
+ 1 | x | t | 10
+ 4 | y | f | 20
+ 3 | x | f | 30
+ 2 | y | t | 40
+(5 rows) */
+
+SELECT t.*
+FROM "T" AS t
+ORDER BY t.b DESC, t.c;
+/* # Output #
+ a | b | c | d
+---+---+---+----
+ 4 | y | f | 20
+ 2 | y | t | 40
+ 3 | x | f | 30
+ 1 | x | t | 10
+ 5 | x | t |
+(5 rows) */
+
+SELECT t.*, t.d / t.a AS ratio
+FROM "T" AS t
+ORDER BY ratio;
+/* # Output #
+ a | b | c | d  | ratio
+---+---+---+----+-------
+ 4 | y | f | 20 |     5
+ 1 | x | t | 10 |    10
+ 3 | x | f | 30 |    10
+ 2 | y | t | 40 |    20
+ 5 | x | t |    |
+(5 rows) */
+
+VALUES (1, 'one'),
+       (2, 'two'),
+       (3, 'three')
+ORDER BY column1 DESC;
+/* # Output #
+ column1 | column2
+---------+---------
+       3 | three
+       2 | two
+       1 | one
+(3 rows) */
+
+SELECT t.*
+FROM "T" AS t
+ORDER BY t.a DESC
+OFFSET 1
+LIMIT 3;
+/* # Output #
+ a | b | c | d
+---+---+---+----
+ 4 | y | f | 20
+ 3 | x | f | 30
+ 2 | y | t | 40
+(3 rows) */
+```
+
+- Groups rows by `t.c` column and picks the row that has the smallest `t.d` value from each group.
+
+```sql
+SELECT DISTINCT ON (t.c) t.*
+FROM "T" as t
+ORDER BY t.c, t.d;
+/* # Output #
+ a | b | c | d
+---+---+---+----
+ 4 | y | f | 20
+ 1 | x | t | 10
+(2 rows) */
+
+TABLE "T" ORDER BY "T".c, "T".d;
+/* # Output #
+ a | b | c | d
+---+---+---+----
+ 4 | y | f | 20 -- 1st row of the 1st group
+ 3 | x | f | 30
+ 1 | x | t | 10 -- 1st row of the 2nd group
+ 2 | y | t | 40
+ 5 | x | t |
+(5 rows) */
+
+SELECT DISTINCT t.*
+FROM (VALUES ('a', 1),
+             ('a', 1),
+             ('b', 2)) AS t;
+/* # Output #
+ column1 | column2
+---------+---------
+ b       |       2
+ a       |       1
+(2 rows) */
+```
