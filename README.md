@@ -493,3 +493,97 @@ GROUP BY t.b, t.a % 2;
  x |      1
 (2 rows) */
 ```
+
+### 09. Bag/set operations: UNION/INTERSECT/EXCEPT
+
+```sql
+SELECT t.*
+FROM "T" AS t
+WHERE t.c
+  UNION ALL
+SELECT t.*
+FROM "T" AS t
+WHERE NOT t.c;
+/* # Output #
+ a | b | c | d
+---+---+---+----
+ 1 | x | t | 10
+ 2 | y | t | 40
+ 5 | x | t |
+ 3 | x | f | 30
+ 4 | y | f | 20
+(5 rows) */
+
+SELECT t.b
+FROM "T" AS t
+WHERE t.c
+  UNION
+SELECT t.b
+FROM "T" AS t
+WHERE NOT t.c;
+/* # Output #
+ b
+---
+ x
+ y
+ x
+ x
+ y
+(5 rows) */
+
+SELECT t.b
+FROM "T" AS t
+WHERE t.c
+  UNION
+SELECT t.b
+FROM "T" AS t
+WHERE NOT t.c;
+/* # Output #
+ b
+---
+ x
+ y
+(2 rows) */
+
+SELECT 1 AS q, t.b
+FROM "T" AS t
+WHERE t.c
+  UNION ALL
+SELECT 2 AS q, t.b
+FROM "T" AS t
+WHERE NOT t.c;
+/* # Output #
+ q | b
+---+---
+ 1 | x
+ 1 | y
+ 1 | x
+ 2 | x
+ 2 | y
+(5 rows) */
+
+SELECT t.b
+FROM "T" AS t
+WHERE t.c       -- 'x' 'y' 'x'
+  EXCEPT ALL
+SELECT t.b
+FROM "T" AS t
+WHERE NOT t.c;  -- 'x' 'y'
+/* # Output #
+ b
+---
+ x
+(1 row) */
+
+SELECT t.b
+FROM "T" AS t
+WHERE NOT t.c -- 'x' 'y'
+  EXCEPT ALL
+SELECT t.b
+FROM "T" AS t
+WHERE t.c;    -- 'x' 'y' 'x'
+/* # Output #
+ b
+---
+(0 rows) */
+```
