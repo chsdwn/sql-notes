@@ -587,3 +587,184 @@ WHERE t.c;    -- 'x' 'y' 'x'
 ---
 (0 rows) */
 ```
+
+### 10. Syntactic sugar: GROUPING SETS/ROLLUP/CUBE
+
+```sql
+DROP TABLE IF EXISTS prehistoric;
+CREATE TABLE prehistoric (class text,
+                          "herbivore?" boolean,
+                          legs int,
+                          species text);
+
+INSERT INTO prehistoric VALUES
+  ('mammalia', true, 2, 'Megatherium'),
+  ('mammalia', true, 4, 'Paraceratherium'),
+  ('mammalia', false, 2, NULL),
+  ('mammalia', false, 4, 'Sabretooth'),
+  ('reptilia', true, 2, 'Iguanodon'),
+  ('reptilia', true, 4, 'Brachiosaurus'),
+  ('reptilia', false, 2, 'Velociraptor'),
+  ('reptilia', false, 4, NULL);
+```
+
+#### `GROUPING SETS`
+
+```sql
+SELECT p.class,
+       p."herbivore?",
+       p.legs,
+       string_agg(p.species, ', ') AS species -- string_agg ignores NULL
+FROM prehistoric AS p
+GROUP BY GROUPING SETS ((class), ("herbivore?"), (legs));
+/* # Output #
+  class   | herbivore? | legs |                        species
+----------+------------+------+--------------------------------------------------------
+ reptilia |            |      | Iguanodon, Brachiosaurus, Velociraptor
+ mammalia |            |      | Megatherium, Paraceratherium, Sabretooth
+          | f          |      | Sabretooth, Velociraptor
+          | t          |      | Megatherium, Paraceratherium, Iguanodon, Brachiosaurus
+          |            |    4 | Paraceratherium, Sabretooth, Brachiosaurus
+          |            |    2 | Megatherium, Iguanodon, Velociraptor
+(6 rows) */
+```
+
+- Without using GROUPING SETS the same result can be acquired by using three GROUP BY and two UNION ALL.
+
+```sql
+SELECT p.class,
+       NULL::boolean AS "herbivore?",
+       NULL::int AS legs,
+       string_agg(p.species, ', ') AS species
+FROM prehistoric AS p
+GROUP BY p.class
+  /* # Output #
+    class   | herbivore? | legs |                 species
+  ----------+------------+------+------------------------------------------
+  reptilia |            |      | Iguanodon, Brachiosaurus, Velociraptor
+  mammalia |            |      | Megatherium, Paraceratherium, Sabretooth
+  (2 rows) */
+
+  UNION ALL
+
+SELECT NULL::text AS class,
+       p."herbivore?",
+       NULL::int AS legs,
+       string_agg(p.species, ', ') AS species
+FROM prehistoric AS p
+GROUP BY p."herbivore?"
+  /* # Output #
+  class | herbivore? | legs |                        species
+  -------+------------+------+--------------------------------------------------------
+        | f          |      | Sabretooth, Velociraptor
+        | t          |      | Megatherium, Paraceratherium, Iguanodon, Brachiosaurus
+  (2 rows) */
+
+  UNION ALL
+
+SELECT NULL::text AS class,
+       NULL::boolean AS "herbivore?",
+       p.legs AS legs,
+       string_agg(p.species, ', ') AS species
+FROM prehistoric AS p
+GROUP BY p.legs;
+  /* # Output #
+  class | herbivore? | legs |                  species
+  -------+------------+------+--------------------------------------------
+        |            |    4 | Paraceratherium, Sabretooth, Brachiosaurus
+        |            |    2 | Megatherium, Iguanodon, Velociraptor
+  (2 rows) */
+
+/* # Final Output #
+  class   | herbivore? | legs |                        species
+----------+------------+------+--------------------------------------------------------
+ reptilia |            |      | Iguanodon, Brachiosaurus, Velociraptor
+ mammalia |            |      | Megatherium, Paraceratherium, Sabretooth
+          | f          |      | Sabretooth, Velociraptor
+          | t          |      | Megatherium, Paraceratherium, Iguanodon, Brachiosaurus
+          |            |    4 | Paraceratherium, Sabretooth, Brachiosaurus
+          |            |    2 | Megatherium, Iguanodon, Velociraptor
+(6 rows) */
+```
+
+#### `ROLLUP`
+
+```sql
+SELECT p.class,
+       p."herbivore?",
+       p.legs,
+       string_agg(p.species, ', ') AS species
+FROM prehistoric AS p
+GROUP BY ROLLUP (class, "herbivore?", legs);
+/* # Output #
+  class   | herbivore? | legs |                                     species
+
+----------+------------+------+----------------------------------------------------------------------------------
+ mammalia | f          |    2 |
+ mammalia | f          |    4 | Sabretooth
+ mammalia | f          |      | Sabretooth
+ mammalia | t          |    2 | Megatherium
+ mammalia | t          |    4 | Paraceratherium
+ mammalia | t          |      | Megatherium, Paraceratherium
+ mammalia |            |      | Sabretooth, Megatherium, Paraceratherium
+ reptilia | f          |    2 | Velociraptor
+ reptilia | f          |    4 |
+ reptilia | f          |      | Velociraptor
+ reptilia | t          |    2 | Iguanodon
+ reptilia | t          |    4 | Brachiosaurus
+ reptilia | t          |      | Iguanodon, Brachiosaurus
+ reptilia |            |      | Velociraptor, Iguanodon, Brachiosaurus
+          |            |      | Sabretooth, Megatherium, Paraceratherium, Velociraptor, Iguanodon, Brachiosaurus
+(15 rows) */
+
+SELECT string_agg(p.species, ', ') AS species
+FROM prehistoric AS p
+GROUP BY (); -- same as w/o GROUP BY
+/* # Output #
+                                     species
+----------------------------------------------------------------------------------
+ Megatherium, Paraceratherium, Sabretooth, Iguanodon, Brachiosaurus, Velociraptor
+(1 row) */
+```
+
+#### `CUBE`
+
+```sql
+SELECT p.class,
+       p."herbivore?",
+       p.legs,
+       string_agg(p.species, ', ') AS species
+FROM prehistoric AS p
+GROUP BY CUBE (class, "herbivore?", legs);
+/* # Output #
+  class   | herbivore? | legs |                                     species
+----------+------------+------+----------------------------------------------------------------------------------
+ mammalia | f          |    2 |
+ mammalia | f          |    4 | Sabretooth
+ mammalia | f          |      | Sabretooth
+ mammalia | t          |    2 | Megatherium
+ mammalia | t          |    4 | Paraceratherium
+ mammalia | t          |      | Megatherium, Paraceratherium
+ mammalia |            |      | Sabretooth, Megatherium, Paraceratherium
+ reptilia | f          |    2 | Velociraptor
+ reptilia | f          |    4 |
+ reptilia | f          |      | Velociraptor
+ reptilia | t          |    2 | Iguanodon
+ reptilia | t          |    4 | Brachiosaurus
+ reptilia | t          |      | Iguanodon, Brachiosaurus
+ reptilia |            |      | Velociraptor, Iguanodon, Brachiosaurus
+          |            |      | Sabretooth, Megatherium, Paraceratherium, Velociraptor, Iguanodon, Brachiosaurus
+          | f          |    2 | Velociraptor
+          | f          |    4 | Sabretooth
+          | f          |      | Velociraptor, Sabretooth
+          | t          |    2 | Megatherium, Iguanodon
+          | t          |    4 | Paraceratherium, Brachiosaurus
+          | t          |      | Megatherium, Iguanodon, Paraceratherium, Brachiosaurus
+          |            |    4 | Sabretooth, Paraceratherium, Brachiosaurus
+          |            |    2 | Megatherium, Velociraptor, Iguanodon
+ reptilia |            |    4 | Brachiosaurus
+ mammalia |            |    2 | Megatherium
+ mammalia |            |    4 | Sabretooth, Paraceratherium
+ reptilia |            |    2 | Velociraptor, Iguanodon
+(27 rows) */
+```
