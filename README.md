@@ -768,3 +768,20 @@ GROUP BY CUBE (class, "herbivore?", legs);
  reptilia |            |    2 | Velociraptor, Iguanodon
 (27 rows) */
 ```
+
+### 11. SQL reading vs. evaluation order, CTEs (WITH)
+
+```sql
+WITH
+  prehistoric(class, "herbivore?", legs, species) AS (
+    VALUES ('mammalia', true, 2, 'Megatherium'),
+           ('reptilia', false, 4, NULL)
+  )
+SELECT MAX(p.legs)
+FROM prehistoric AS p;
+/* # Output #
+ max
+-----
+   4
+(1 row) */
+```
