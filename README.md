@@ -864,3 +864,98 @@ WHERE d.legs IS NOT NULL;
  Supersaurus     |     10 |   30.5 |    4
 (18 rows) */
 ```
+
+### 13. Built-in data types, CAST, casting text literals
+
+```sql
+SELECT string_agg(t.typname, ', ') AS "data types"
+FROM pg_catalog.pg_type AS t
+WHERE t.typelem = 0   -- disregard array element types
+  AND t.typrelid = 0; -- list non-composite types only
+```
+
+- data types:
+
+`bool, bytea, char, int8, int2, int4, regproc, text, oid, tid, xid, cid, json, xml, pg_node_tree, pg_ndistinct, pg_dependencies, pg_mcv_list, pg_ddl_command, path, polygon, float4, float8, unknown, circle, money, macaddr, inet, cidr, macaddr8, aclitem, bpchar, varchar, date, time, timestamp, timestamptz, interval, timetz, bit, varbit, numeric, refcursor, regprocedure, regoper, regoperator, regclass, regtype, regrole, regnamespace, uuid, pg_lsn, tsvector, gtsvector, tsquery, regconfig, regdictionary, jsonb, jsonpath, txid_snapshot, int4range, numrange, tsrange, tstzrange, daterange, int8range, record, cstring, any, anyarray, void, trigger, event_trigger, language_handler, internal, opaque, anyelement, anynonarray, anyenum, fdw_handler, index_am_handler, tsm_handler, table_am_handler, anyrange, cardinal_number, character_data, sql_identifier, time_stamp, yes_or_no`
+
+#### Type casts
+
+- Runtime type conversion
+
+```sql
+SELECT 6.2::int; -- 6
+SELECT 6.8::int; -- 7
+SELECT date('13 Feb, 2000'); -- 2000-02-13
+```
+
+- Implicit conversion
+
+```sql
+INSERT INTO "T"(a,b,c,d) VALUES (6.2, NULL, 'true', '0');
+/* # Inserted row #
+ a | b | c | d
+---+---+---+---
+ 6 |   | t | 0
+(1 row) */
+
+SELECT booleans.yup::boolean, booleans.nope::boolean
+FROM (VALUES ('true', 'false'),
+             ('True', 'False'),
+             ('t',    'f'),
+             ('1',    '0'),
+             ('yes',  'no'),
+             ('on',   'off')) AS booleans(yup, nope);
+/* # Output #
+ yup | nope
+-----+------
+ t   | f
+ t   | f
+ t   | f
+ t   | f
+ t   | f
+ t   | f
+(6 rows) */
+```
+
+- XML
+
+```sql
+SELECT $$<t a='42'><l/><r/></t>$$::xml;
+/* # Output #
+          xml
+------------------------
+ <t a='42'><l/><r/></t>
+(1 row) */
+
+SELECT $int$42$int$::int;
+/* # Output #
+ int4
+------
+   42
+(1 row) */
+```
+
+- CSV
+
+```sql
+DELETE FROM "T";
+
+COPY "T"(a,b,c,d) FROM STDIN WITH (FORMAT CSV, NULL '*');
+1,x,true,10
+2,y,true,40
+3,x,false,30
+4,y,false,20
+5,x,true,*
+\.
+
+TABLE "T";
+/* # Output #
+ a | b | c | d
+---+---+---+----
+ 1 | x | t | 10
+ 2 | y | t | 40
+ 3 | x | f | 30
+ 4 | y | f | 20
+ 5 | x | t |
+(5 rows) */
+```
