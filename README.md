@@ -1047,3 +1047,170 @@ FROM one_million_rows AS t;
  Execution Time: 195.863 ms
 (2 rows) */
 ```
+
+### 15. Types date/time/timestamp/interval, date/time arithmetics
+
+```sql
+SELECT 'now'::date AS "now (date)",
+       'now'::time AS "now (time)",
+       'now'::timestamp AS "now (timestamp)";
+/* # Output #
+ now (date) |   now (time)    |      now (timestamp)
+------------+-----------------+----------------------------
+ 2023-10-30 | 11:48:10.652387 | 2023-10-30 11:48:10.652387
+(1 row) */
+
+SELECT 'now'::timestamp AS "now",
+       'now'::timestamp with time zone AS "now with time zone",
+       'now'::timestamptz AS "now tz";
+/* # Output #
+            now             |      now with time zone       |            now tz
+----------------------------+-------------------------------+-------------------------------
+ 2023-10-30 11:50:21.777615 | 2023-10-30 11:50:21.777615+00 | 2023-10-30 11:50:21.777615+00
+(1 row) */
+
+SET datestyle='German,MDY';
+SELECT '1-2-2000'::date;
+/* # Output #
+    date
+------------
+ 02.01.2000
+(1 row) */
+
+SET datestyle='German,DMY';
+SELECT '1-2-2000'::date;
+/* # Output #
+    date
+------------
+ 01.02.2000
+(1 row) */
+
+SET datestyle='ISO,MDY'; -- default datestyle
+
+SELECT COUNT(DISTINCT birthdays.d::date) AS interpretations
+FROM (VALUES ('August 26, 1968'),
+             ('Aug 26, 1968'),
+             ('08.26.1968'),
+             ('08-26-1968'),
+             ('8/26/1968')) AS birthdays(d);
+/* # Output #
+ interpretations
+-----------------
+               1
+(1 row) */
+
+SELECT 'epoch'::timestamp AS epoch,
+       'infinity'::timestamp AS infinity,
+       'today'::date AS today,
+       'yesterday'::date AS yesterday,
+       'tomorrow'::date AS tomorrow;
+/* # Output #
+        epoch        | infinity |   today    | yesterday  |  tomorrow
+---------------------+----------+------------+------------+------------
+ 1970-01-01 00:00:00 | infinity | 2023-10-30 | 2023-10-29 | 2023-10-31
+(1 row) */
+
+SELECT '1 year 2 months 3 days 4 hours 5 minutes 6 seconds'::interval;
+/* # Output #
+           interval
+-------------------------------
+ 1 year 2 mons 3 days 04:05:06
+(1 row) */
+
+SELECT 'P1Y2M3DT4H5M6S'::interval; -- ISO 8601
+/* # Output #
+           interval
+-------------------------------
+ 1 year 2 mons 3 days 04:05:06
+(1 row) */
+
+SELECT ('now'::timestamp - 'yesterday'::date)::interval;
+/* # Output #
+       interval
+-----------------------
+ 1 day 12:30:20.951839
+(1 row) */
+
+\x on -- expanded display
+SELECT 'Aug 31, 2035'::date - 'now'::timestamp AS retirement,
+       'now'::date + '30 days'::interval AS in_one_month,
+       'now'::date + 2 * '1 month'::interval AS in_two_months,
+       'tomorrow'::date - 'now'::timestamp AS til_midnight,
+       extract(hours from('tomorrow'::date - 'now'::timestamp)) AS hours_til_midnight,
+       'tomorrow'::date - 'yesterday'::date AS two,
+       make_interval(days => 'tomorrow'::date - 'yesterday'::date) AS two_days;
+\x off
+/* # Output #
+-[ RECORD 1 ]------+--------------------------
+retirement         | 4322 days 11:19:23.836858
+in_one_month       | 2023-11-29 00:00:00
+in_two_months      | 2023-12-30 00:00:00
+til_midnight       | 11:19:23.836858
+hours_til_midnight | 11
+two                | 2
+two_days           | 2 days */
+
+SELECT (make_date(2023, months.m, 1) - '1 day'::interval)::date AS last_day_of_month
+FROM generate_series(1,12) AS months(m);
+/* # Output #
+------------------+-----------
+last_day_of_month | 2022-12-31
+last_day_of_month | 2023-01-31
+last_day_of_month | 2023-02-28
+last_day_of_month | 2023-03-31
+last_day_of_month | 2023-04-30
+last_day_of_month | 2023-05-31
+last_day_of_month | 2023-06-30
+last_day_of_month | 2023-07-31
+last_day_of_month | 2023-08-31
+last_day_of_month | 2023-09-30
+last_day_of_month | 2023-10-31
+last_day_of_month | 2023-11-30 */
+
+SELECT timezones.tz AS timezone,
+       'now'::timestamp with time zone
+        -
+       ('now'::timestamp::text || ' ' || timezones.tz)::timestamp with time zone AS difference
+FROM   (VALUES ('America/New_York'),
+               ('Europe/Istanbul'),
+               ('Asia/Tokyo'),
+               ('PST'),
+               ('UTC'),
+               ('UTC-6'),
+               ('+5')
+       ) AS timezones(tz)
+ORDER BY difference;
+/* # Output #
+-[ RECORD 1 ]----------------
+timezone   | PST
+difference | -08:00:00
+-[ RECORD 2 ]----------------
+timezone   | America/New_York
+difference | -04:00:00
+-[ RECORD 3 ]----------------
+timezone   | UTC
+difference | 00:00:00
+-[ RECORD 4 ]----------------
+timezone   | Europe/Istanbul
+difference | 03:00:00
+-[ RECORD 5 ]----------------
+timezone   | +5
+difference | 05:00:00
+-[ RECORD 6 ]----------------
+timezone   | UTC-6
+difference | 06:00:00
+-[ RECORD 7 ]----------------
+timezone   | Asia/Tokyo
+difference | 09:00:00 */
+
+SELECT holidays.holiday
+FROM (VALUES ('Easter',    'Apr  6, 2023', 'Apr 18, 2023'),
+             ('Pentecost', 'Jun  2, 2023', 'Jun 13, 2023'),
+             ('Summer',    'Jul 30, 2023', 'Sep  9, 2023'),
+             ('Autumn',    'Oct 26, 2023', 'Oct 31, 2023'),
+             ('Winter',    'Dec 23, 2023', 'Jan  9, 2024')) AS holidays(holiday, "start", "end")
+WHERE (holidays.start::date, holidays.end::date) overlaps('today', 'today');
+/* # Output #
+-[ RECORD 1 ]---
+holiday | Autumn */
+```
