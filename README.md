@@ -959,3 +959,91 @@ TABLE "T";
  5 | x | t |
 (5 rows) */
 ```
+
+### 14. String data types (char/varchar/text), type numeric(s,p)
+
+- `char`: `char(1)`
+- `char(n)`: fixed length, blank (` `) padded if needed
+- `varchar(n)`: varying length <= n characters
+- `text`: varying length, unlimited
+
+```sql
+SELECT '01234'::char(3);
+/* # Output #
+ bpchar -- bpchar: blank-padded character
+--------
+ 012
+(1 row) */
+
+SELECT t.c::char(10)
+FROM (VALUES ('01234'),
+             ('0123456789')
+     ) AS t(c);
+/* # Output #
+     c
+------------
+ 01234
+ 0123456789
+(2 rows) */
+
+SELECT t.c,
+       length(t.c) AS chars,
+       octet_length(t.c) AS bytes
+FROM (VALUES ('x'),
+             ('池'),
+             ('😀😃')
+     ) AS t(c);
+/* # Output #
+  c   | chars | bytes
+------+-------+-------
+ x    |     1 |     1
+ 池   |     1 |     3
+ 😀😃 |     2 |     8
+(3 rows) */
+
+SELECT octet_length('0123456789'::varchar(5)) AS c1,  -- 5 (truncation)
+       octet_length('012'       ::varchar(5)) AS c2,  -- 3 (within limits)
+       octet_length('012'       ::char(5)) AS c3,     -- 5 (blank padding in storage)
+       length('012'             ::char(5)) AS c4,     -- 3 (padding in storage only)
+       length('012  '           ::char(5)) AS c5;     -- 3 (trailing blanks removed)
+/* # Output #
+ c1 | c2 | c3 | c4 | c5
+----+----+----+----+----
+  5 |  3 |  5 |  3 |  3
+(1 row) */
+```
+
+#### Numeric
+
+```sql
+\pset t on
+SELECT (2::numeric)^100000; -- SQL syntax allows numeric(1000) only
+\pset t off
+/* # Output #
+99900209301438450794403276433003359098042913905418169177152927386314583246425...
+(1 row) */
+
+EXPLAIN ANALYZE
+WITH one_million_rows(x) AS (
+  SELECT t.x::numeric(8,0)
+  FROM generate_series(0,1000000) AS t(x)
+)
+SELECT t.x + t.x AS add
+FROM one_million_rows AS t;
+/* # Output #
+ Planning Time: 0.030 ms
+ Execution Time: 375.387 ms
+(2 rows) */
+
+EXPLAIN ANALYZE
+WITH one_million_rows(x) AS (
+  SELECT t.x::int
+  FROM generate_series(0,1000000) AS t(x)
+)
+SELECT t.x + t.x AS add
+FROM one_million_rows AS t;
+/* # Output #
+ Planning Time: 0.027 ms
+ Execution Time: 195.863 ms
+(2 rows) */
+```
