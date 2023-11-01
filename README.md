@@ -1284,3 +1284,100 @@ ORDER BY s.film; -- the Star Wars Machete order
  TROS | The Rise of Skywalker   | 2019-12-19
 (9 rows) */
 ```
+
+### 17. Bit strings (bit(n)), BLOBS, and byte types (bytea)
+
+#### Bitwise Operations
+
+- `&`: and
+- `|`: or
+- `#`: xor
+- `~`: not
+- `<<`/`>>`: shift left/right,
+- `get_bit()`
+- `set_bit()`
+
+#### String-like Operations
+
+- `||`: concatenation
+- `length()`
+- `bit_length()`
+- `position( in )`
+
+```sql
+SELECT B'00101010', X'2A', '00101010'::bit(8), 42::bit(8); -- X'2A': 2 * 4 bits
+/* # Output #
+ ?column? | ?column? |   bit    |   bit
+----------+----------+----------+----------
+ 00101010 | 00101010 | 00101010 | 00101010
+(1 row) */
+```
+
+```sql
+SELECT encode('chsdwn', 'base64');
+/* # Output #
+  encode
+----------
+ Y2hzZHdu
+(1 row) */
+```
+
+#### Install Python 3 and create language:
+
+- List running container: `docker ps`
+- Run the postgresql container's bash: `docker exec -it <container_id> bash`
+- Update debian packages: `apt-get update`
+- Install plpython3 package for PostgreSQL 12: `apt install postgresql-plpython3-12`
+- Check python version and make sure its installed: `python3 --version`
+- Create language:
+
+```sql
+CREATE LANGUAGE plpython3u;
+```
+
+```sql
+DROP FUNCTION IF EXISTS read_blob(text) CASCADE;
+CREATE FUNCTION read_blob(blob text) RETURNS bytea AS
+$$
+  try:
+    file = open(blob, "rb")
+    return file.read()
+  except:
+    pass
+  # could not read file, return NULL
+  return None
+$$ LANGUAGE plpython3u;
+
+DROP TYPE IF EXISTS edition CASCADE;
+CREATE TYPE edition AS ENUM ('Portal 1', 'Portal 2');
+
+DROP TABLE IF EXISTS glados;
+CREATE TABLE glados (id int PRIMARY KEY,
+                     voice bytea,
+                     line text,
+                     portal edition);
+
+\set blob_path './glados-voice'
+INSERT INTO glados(id, line, portal, voice)
+  SELECT quotes.id, quotes.line, quotes.portal::edition,
+         read_blob(:'blob_path' || quotes.mp3) AS voice
+  FROM
+    (VALUES (1, 'one', 'Portal 1', '1.mp3'),
+            (2, 'two', 'Portal 2', '2.mp3')) AS quotes(id, line, portal, mp3);
+
+SELECT g.id, g.line, g.portal,
+       left(encode(g.voice, 'base64'), 20) AS voice
+FROM glados AS g;
+/* # Output #
+ id | line |  portal  |        voice
+----+------+----------+---------------------
+  1 | one  | Portal 1 | UklGRvpIBABXQVZFZm10
+  2 | two  | Portal 2 | UklGRjc6DABXQVZFZm10
+(2 rows) */
+
+COPY (
+  SELECT translate(encode(g.voice, 'base64'), E'\n', '')
+  FROM glados AS g
+  WHERE g.id = 1
+) TO PROGRAM 'base64 -D > /tmp/1.mp3';
+```
