@@ -1381,3 +1381,35 @@ COPY (
   WHERE g.id = 1
 ) TO PROGRAM 'base64 -D > /tmp/1.mp3';
 ```
+
+### 18. Range/interval types and operations
+
+```sql
+SELECT '[5,10)'::int4range;
+/* # Output #
+ int4range
+-----------
+ [5,10)
+(1 row) */
+
+SELECT int4range(1,5,'[]');
+/* # Output #
+ int4range
+-----------
+ [1,6)
+(1 row) */
+
+SELECT int4range(1,5,'[]') * '[5,10)'::int4range;
+/* # Output #
+ ?column?
+----------
+ [5,6)
+(1 row) */
+
+SELECT int4range(1,5,'[)') * '[5,10)'::int4range;
+/* # Output #
+ ?column?
+----------
+ empty
+(1 row) */
+```
