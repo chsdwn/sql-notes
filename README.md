@@ -1413,3 +1413,38 @@ SELECT int4range(1,5,'[)') * '[5,10)'::int4range;
  empty
 (1 row) */
 ```
+
+### 19. Geometric objects and operations, use case: shape scanner
+
+- `point(x,y)`
+- `line(x,y)`
+- `box(p1,p2)`
+- `[p1,...,pn]`: open path
+- `(p1,...,pn)`: polygon
+- `circle(p,r)`
+
+#### Operations
+
+|          | Operation            |                | Operation           |
+| -------- | -------------------- | -------------- | ------------------- |
+| `+`, `-` | translate            | `area()`       |                     |
+| `*`      | scale                | `height()`     | height of box       |
+| `@-@`    | length/circumference | `width()`      | width of box        |
+| `@@`     | center               | `bound_box(,)` | bounding box        |
+| `<->`    | distance between     | `diameter()`   | diameter of circle  |
+| `&&`     | overlaps?            | `center()`     | center              |
+| `<<`     | strictly left of?    | `isclosed()`   | path closed         |
+| `?-\|`   | is perpendicular?    | `npoints()`    | # of points in path |
+| `@>`     | contains?            | `pclose()`     | close an open path  |
+
+```sql
+\set N 100000
+SELECT (COUNT(*)::float / :N) * 4 AS pi
+FROM generate_series(1, :N) AS _
+WHERE circle(point(0.5,0.5), 0.5) @> point(random(),random());
+/* # Output #
+   pi
+--------
+ 3.1412
+(1 row) */
+```
