@@ -7,7 +7,7 @@
 - `docker ps`: list all running containers
 - `docker exec -it <container_id> psql -U postgres -W postgres`: run psql
 
-## Notes
+## Chapter 2
 
 ### 03. Row variables, row values, row types
 
@@ -865,6 +865,8 @@ WHERE d.legs IS NOT NULL;
 (18 rows) */
 ```
 
+## Chapter 3
+
 ### 13. Built-in data types, CAST, casting text literals
 
 ```sql
@@ -1624,5 +1626,81 @@ FROM jsonb_populate_recordset(NULL::"T", (TABLE like_T_but_as_JSON)) AS t;
  3 | x | f | 30
  4 | y | f | 20
  5 | x | t |
+(5 rows) */
+```
+
+### 21. Sequences, key generation via GENERATED ALWAYS AS IDENTITY
+
+```sql
+CREATE SEQUENCE <seq> -- sequence name
+  [ INCREMENT <inc> ] -- advance by <inc> (default: 1)
+  [ MINVALUE <min> ]  -- range of valid counter values
+  [ MAXVALUE <max> ]  --  (defaults: [1...2^63-1])
+  [ START <start> ]   -- start (default: <min>, <max>)
+  [ [NO] CYCLE ]      -- wrap around or error
+```
+
+```sql
+DROP SEQUENCE IF EXISTS seq;
+CREATE SEQUENCE seq START 41 MAXVALUE 100 CYCLE;
+
+SELECT nextval('seq');      -- 41
+SELECT nextval('seq');      -- 42
+SELECT currval('seq');      -- 42
+SELECT setval('seq', 100);  -- 100 (side effect)
+SELECT nextval('seq');      -- 1   (wrap around)
+
+TABLE seq;
+/* # Output #
+ last_value | log_cnt | is_called
+------------+---------+-----------
+          1 |      32 | t
+(1 row) */
+
+SELECT setval('seq', 100, false); -- 100 (is_called: false)
+SELECT nextval('seq');            -- 100
+```
+
+```sql
+DROP TABLE IF EXISTS self_concious_T;
+CREATE TABLE self_concious_T (me int GENERATED ALWAYS AS IDENTITY,
+                              a int,
+                              b text,
+                              c boolean,
+                              d int);
+
+TABLE self_concious_T_me_seq;
+/* # Output #
+ last_value | log_cnt | is_called
+------------+---------+-----------
+          1 |       0 | f
+(1 row) */
+
+INSERT INTO self_concious_T(a,b,c,d)
+  VALUES (1, 'x', true, 10),
+         (2, 'y', true, 40);
+
+INSERT INTO self_concious_T(a,b,c,d)
+  VALUES (5, 'x', true, NULL),
+         (4, 'y', false, 20),
+         (3, 'x', false, 30)
+RETURNING me, c;
+/* # Output #
+ me | c
+----+---
+  3 | t
+  4 | f
+  5 | f
+(3 rows) */
+
+TABLE self_concious_T;
+/* # Output #
+ me | a | b | c | d
+----+---+---+---+----
+  1 | 1 | x | t | 10
+  2 | 2 | y | t | 40
+  3 | 5 | x | t |
+  4 | 4 | y | f | 20
+  5 | 3 | x | f | 30
 (5 rows) */
 ```
