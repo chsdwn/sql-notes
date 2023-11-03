@@ -1448,3 +1448,181 @@ WHERE circle(point(0.5,0.5), 0.5) @> point(random(),random());
  3.1412
 (1 row) */
 ```
+
+### 20. JSON support (type jsonb) [and XML support]
+
+```sql
+VALUES (1, '{ "b": 1, "a": 2 }'::jsonb),  -- pair order flip
+       (2, '{ "a": 1, "b": 2, "a": 3 }'), -- duplicate field
+       (3, '[0,   false, null]');         -- whitespace normalization
+/* # Output #
+ column1 |     column2
+---------+------------------
+       1 | {"a": 2, "b": 1}
+       2 | {"a": 3, "b": 2}
+       3 | [0, false, null]
+(3 rows) */
+
+VALUES (1, '{ "b": 1, "a": 2 }'::json),   -- preserve pair order
+       (2, '{ "a": 1, "b": 2, "a": 3 }'), -- preserve duplicates
+       (3, '[0,   false, null]');         -- preserve whitespace
+/* # Output #
+ column1 |          column2
+---------+----------------------------
+       1 | { "b": 1, "a": 2 }
+       2 | { "a": 1, "b": 2, "a": 3 }
+       3 | [0,   false, null]
+(3 rows) */
+
+SELECT ('{ "a": 0, "b": { "b1": 1, "b2": 2 } }'::jsonb -> 'b' ->> 'b2')::int + 40;
+/* # Output #
+ ?column?
+----------
+       42
+(1 row) */
+
+SELECT row_to_json(t)::jsonb
+FROM "T" AS t;
+/* # Output #
+               row_to_json
+------------------------------------------
+ {"a": 1, "b": "x", "c": true, "d": 10}
+ {"a": 2, "b": "y", "c": true, "d": 40}
+ {"a": 3, "b": "x", "c": false, "d": 30}
+ {"a": 4, "b": "y", "c": false, "d": 20}
+ {"a": 5, "b": "x", "c": true, "d": null}
+(5 rows) */
+
+SELECT array_to_json(array_agg(row_to_json(t)))::jsonb
+FROM "T" AS t;
+/* # Output #
+[{"a": 1, "b": "x", "c": true, "d": 10}, {"a": 2, "b": "y", "c": true, "d": 40}, {"a": 3, "b": "x", "c": false, "d": 30}, {"a": 4, "b": "y", "c": false, "d": 20}, {"a": 5, "b": "x", "c": true, "d": null}] */
+
+SELECT jsonb_pretty(array_to_json(array_agg(row_to_json(t)))::jsonb)
+FROM "T" AS t;
+/* # Output #
+    jsonb_pretty
+---------------------
+ [                  +
+     {              +
+         "a": 1,    +
+         "b": "x",  +
+         "c": true, +
+         "d": 10    +
+     },             +
+     {              +
+         "a": 2,    +
+         "b": "y",  +
+         "c": true, +
+         "d": 40    +
+     },             +
+     {              +
+         "a": 3,    +
+         "b": "x",  +
+         "c": false,+
+         "d": 30    +
+     },             +
+     {              +
+         "a": 4,    +
+         "b": "y",  +
+         "c": false,+
+         "d": 20    +
+     },             +
+     {              +
+         "a": 5,    +
+         "b": "x",  +
+         "c": true, +
+         "d": null  +
+     }              +
+ ]
+(1 row) */
+```
+
+```sql
+DROP TABLE IF EXISTS like_T_but_as_JSON;
+CREATE TEMPORARY TABLE like_T_but_as_JSON(a) AS
+  SELECT array_to_json(array_agg(row_to_json(t)))::jsonb
+  FROM "T" AS t;
+
+TABLE like_T_but_as_JSON;
+/* # Output #
+[{"a": 1, "b": "x", "c": true, "d": 10}, {"a": 2, "b": "y", "c": true, "d": 40}, {"a": 3, "b": "x", "c": false, "d": 30}, {"a": 4, "b": "y", "c": false, "d": 20}, {"a": 5, "b": "x", "c": true, "d": null}] */
+
+SELECT o
+FROM jsonb_array_elements((TABLE like_T_but_as_JSON)) AS objs(o);
+/* # Output #
+                    o
+------------------------------------------
+ {"a": 1, "b": "x", "c": true, "d": 10}
+ {"a": 2, "b": "y", "c": true, "d": 40}
+ {"a": 3, "b": "x", "c": false, "d": 30}
+ {"a": 4, "b": "y", "c": false, "d": 20}
+ {"a": 5, "b": "x", "c": true, "d": null}
+(5 rows) */
+
+SELECT t.*
+FROM jsonb_array_elements((TABLE like_T_but_as_JSON)) AS objs(o),
+     jsonb_each(o) AS t;
+/* # Output #
+ key | value
+-----+-------
+ a   | 1
+ b   | "x"
+ c   | true
+ d   | 10
+ a   | 2
+ b   | "y"
+ c   | true
+ d   | 40
+ a   | 3
+ b   | "x"
+ c   | false
+ d   | 30
+ a   | 4
+ b   | "y"
+ c   | false
+ d   | 20
+ a   | 5
+ b   | "x"
+ c   | true
+ d   | null
+(20 rows) */
+
+SELECT t.*
+FROM jsonb_array_elements((TABLE like_T_but_as_JSON)) AS objs(o),
+     jsonb_to_record(o) AS t(a int, b text, c boolean, d int);
+/* # Output #
+ a | b | c | d
+---+---+---+----
+ 1 | x | t | 10
+ 2 | y | t | 40
+ 3 | x | f | 30
+ 4 | y | f | 20
+ 5 | x | t |
+(5 rows) */
+
+SELECT t.*
+FROM jsonb_array_elements((TABLE like_T_but_as_JSON)) AS objs(o),
+     jsonb_populate_record(NULL::"T", o) AS t;
+/* # Output #
+ a | b | c | d
+---+---+---+----
+ 1 | x | t | 10
+ 2 | y | t | 40
+ 3 | x | f | 30
+ 4 | y | f | 20
+ 5 | x | t |
+(5 rows) */
+
+SELECT t.*
+FROM jsonb_populate_recordset(NULL::"T", (TABLE like_T_but_as_JSON)) AS t;
+/* # Output #
+ a | b | c | d
+---+---+---+----
+ 1 | x | t | 10
+ 2 | y | t | 40
+ 3 | x | f | 30
+ 4 | y | f | 20
+ 5 | x | t |
+(5 rows) */
+```
