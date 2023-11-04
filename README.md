@@ -1731,3 +1731,69 @@ TABLE "Trees";
     3 | {NULL,1,NULL,1,3}  | {a,b,d,c,e}
 (3 rows) */
 ```
+
+### 23. Array construction/indexing/slicing, searching in arrays
+
+```sql
+SELECT array_append(array[1,2,3], 4);         -- {1,2,3,4}
+SELECT array[1,2,3] || 4;                     -- {1,2,3,4}
+SELECT array_prepend(4, array[1,2,3]);        -- {4,1,2,3}
+SELECT 4 || array[1,2,3];                     -- {4,1,2,3}
+SELECT array_cat(array[1,2,3], array[4,5,6]); -- {1,2,3,4,5,6}
+SELECT array[1,2,3] || array[4,5,6];          -- {1,2,3,4,5,6}
+
+SELECT (array[4])[1];           -- 4
+SELECT (array[4])[NULL];        -- NULL
+SELECT (array[NULL])[1];        -- NULL
+SELECT (array[1,2,3,4,5])[2:4]; -- {2,3,4}
+SELECT (array[1,2,3,4,5])[2:];  -- {2,3,4,5}
+SELECT (array[1,2,3,4,5])[:4];  -- {1,2,3,4}
+
+SELECT array_length(array[1,2,3], 1); -- 3
+SELECT cardinality(array[1,2,3]);     -- 3
+
+SELECT array_position(array[3,4,5], 4);     -- 2
+SELECT array_position(array[3,4,5], 1);     -- NULL
+SELECT array_positions(array[3,4,5,4], 4);  -- {2,4}
+SELECT array_positions(array[3,4,5,4], 1);  -- {}
+SELECT array_replace(array[1,2,3], 1, 4);   -- {4,2,3}
+```
+
+```sql
+SELECT bool_and(cardinality(t.parents) = cardinality(t.labels))
+FROM "Trees" AS t;
+/* # Output #
+ bool_and
+----------
+ t
+(1 row) */
+
+SELECT t.tree, array_positions(t.labels, 'f') AS "f nodes"
+FROM "Trees" AS t
+WHERE 'f' = ANY(t.labels);
+/* # Output #
+ tree | f nodes
+------+---------
+    1 | {6}
+    2 | {2}
+(2 rows) */
+
+SELECT t.tree, t.labels[array_position(t.parents,NULL)] AS root
+FROM "Trees" AS t;
+/* # Output #
+ tree | root
+------+------
+    1 | a
+    2 | g
+    3 | a
+(3 rows) */
+
+SELECT t.tree AS forest
+FROM "Trees" AS t
+WHERE cardinality(array_positions(t.parents,NULL)) > 1;
+/* # Output #
+ forest
+--------
+      3
+(1 row) */
+```
