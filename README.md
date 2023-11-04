@@ -1704,3 +1704,30 @@ TABLE self_concious_T;
   5 | 3 | x | f | 30
 (5 rows) */
 ```
+
+## Chapter 4
+
+### 22. Arrays vs. 1NF, array semantics, array literals
+
+- `{x1,...,xn}`: array of elements
+
+```sql
+DROP TABLE IF EXISTS "Trees";
+CREATE TABLE "Trees" (tree int PRIMARY KEY,
+                      parents int[],
+                      labels text[]);
+
+INSERT INTO "Trees"(tree, parents, labels) VALUES
+  (1, array[NULL,1,2,2,1,5], array['a','b','d','e','c','f']),
+  (2, array[4,1,1,6,4,NULL,6], array['d','f','a','b','e','g','c']),
+  (3, array[NULL,1,NULL,1,3], string_to_array('a;b;d;c;e',';'));
+
+TABLE "Trees";
+/* # Output #
+ tree |      parents       |     labels
+------+--------------------+-----------------
+    1 | {NULL,1,2,2,1,5}   | {a,b,d,e,c,f}
+    2 | {4,1,1,6,4,NULL,6} | {d,f,a,b,e,g,c}
+    3 | {NULL,1,NULL,1,3}  | {a,b,d,c,e}
+(3 rows) */
+```
