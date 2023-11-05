@@ -1797,3 +1797,116 @@ WHERE cardinality(array_positions(t.parents,NULL)) > 1;
       3
 (1 row) */
 ```
+
+### 24. Array programming via unnest(), array_agg, WITH ORDINALITY
+
+```sql
+SELECT t.elem
+FROM unnest(array[1,2,3]) AS t(elem); -- items order lost
+/* # Output #
+ elem
+------
+    1
+    2
+    3
+(3 rows) */
+
+SELECT array_agg(t.elem) AS xs
+FROM (VALUES (1), (2), (3)) AS t(elem);
+/* # Output #
+   xs
+---------
+ {1,2,3}
+(1 row) */
+
+SELECT t.*
+FROM unnest(array[6,5,4])
+     WITH ORDINALITY AS t(elem,idx);  -- keep items order on "idx" column
+/* # Output #
+ elem | idx
+------+-----
+    6 |   1
+    5 |   2
+    4 |   3
+(3 rows) */
+
+SELECT array_agg(t.elem ORDER BY t.idx DESC) AS xs
+FROM (VALUES (6,1), (5,2), (4,3)) AS t(elem,idx);
+/* # Output #
+   xs
+---------
+ {4,5,6}
+(1 row) */
+```
+
+```sql
+SELECT node.parent, node.label
+FROM "Trees" AS t,
+     unnest(t.parents, t.labels) AS node(parent,label)
+WHERE t.tree = 2;
+/* # Output #
+ parent | label
+--------+-------
+      4 | d
+      1 | f
+      1 | a
+      6 | b
+      4 | e
+        | g
+      6 | c
+(7 rows) */
+
+SELECT node.*
+FROM "Trees" AS t,
+     unnest(t.parents, t.labels) WITH ORDINALITY AS node(parent,label,idx)
+WHERE t.tree = 2;
+/* # Output #
+ parent | label | idx
+--------+-------+-----
+      4 | d     |   1
+      1 | f     |   2
+      1 | a     |   3
+      6 | b     |   4
+      4 | e     |   5
+        | g     |   6
+      6 | c     |   7
+(7 rows) */
+
+SELECT t.tree,
+       array_agg(node.parent ORDER BY node.idx) AS parents,
+       array_agg(upper(node.label) ORDER BY node.idx) AS labels
+FROM "Trees" AS t,
+     unnest(t.parents, t.labels) WITH ORDINALITY AS node(parent,label,idx)
+GROUP BY t.tree;
+/* # Output #
+ tree |      parents       |     labels
+------+--------------------+-----------------
+    1 | {NULL,1,2,2,1,5}   | {A,B,D,E,C,F}
+    2 | {4,1,1,6,4,NULL,6} | {D,F,A,B,E,G,C}
+    3 | {NULL,1,NULL,1,3}  | {A,B,D,C,E}
+(3 rows) */
+
+SELECT t.tree, t.parents[node.idx] AS "parent of c"
+FROM "Trees" AS t,
+     unnest(t.labels) WITH ORDINALITY AS node(label,idx)
+WHERE node.label = 'c';
+/* # Output #
+ tree | parent of c
+------+-------------
+    1 |           1
+    2 |           6
+    3 |           1
+(3 rows) */
+
+SELECT t.*
+FROM "Trees" AS t,
+     unnest(t.parents) AS node(parent)
+WHERE node.parent IS NULL
+GROUP BY t.tree
+HAVING COUNT(*) > 1;
+/* # Output #
+ tree |      parents      |   labels
+------+-------------------+-------------
+    3 | {NULL,1,NULL,1,3} | {a,b,d,c,e}
+(1 row) */
+```
