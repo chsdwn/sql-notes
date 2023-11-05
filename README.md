@@ -1910,3 +1910,103 @@ HAVING COUNT(*) > 1;
     3 | {NULL,1,NULL,1,3} | {a,b,d,c,e}
 (1 row) */
 ```
+
+### 25. Set-returning/table-generating functions, ROWS FROM (zip)
+
+```sql
+SELECT generate_series(1,10,3); -- (from, to, increment)
+/* # Output #
+ generate_series
+-----------------
+               1
+               4
+               7
+              10
+(4 rows) */
+
+SELECT generate_series(0,-2, -1);
+/* # Output #
+ generate_series
+-----------------
+               0
+              -1
+              -2
+(3 rows) */
+
+SELECT idx, arr[idx]
+FROM (VALUES (string_to_array('abcde', NULL))) AS _(arr),
+     generate_subscripts(arr, 1) AS idx;
+/* # Output #
+ idx | arr
+-----+-----
+   1 | a
+   2 | b
+   3 | c
+   4 | d
+   5 | e
+(5 rows) */
+```
+
+```sql
+SELECT i, xs[i]
+FROM (VALUES (string_to_array('Star Wars', ' '))) AS _(xs),
+     generate_subscripts(xs, 1) AS i;
+/* # Output #
+ i |  xs
+---+------
+ 1 | Star
+ 2 | Wars
+(2 rows) */
+
+SELECT t.word
+FROM regexp_split_to_table('Luke, I am Your Father', '\s+') AS t(word);
+/* # Output #
+  word
+--------
+ Luke,
+ I
+ am
+ Your
+ Father
+(5 rows) */
+
+SELECT upper(t.c) AS character, t.pos
+FROM unnest(string_to_array('abcde', NULL))
+     WITH ORDINALITY AS t(c,pos);
+/* # Output #
+ character | pos
+-----------+-----
+ A         |   1
+ B         |   2
+ C         |   3
+ D         |   4
+ E         |   5
+(5 rows) */
+
+SELECT starwars.*
+FROM unnest(array[4,5,1,2,3,6,7,8,9],
+            array['A New Hope',
+                  'The Empire Strikes Back',
+                  'The Phantom Menace',
+                  'Attack of the Clones',
+                  'Revenge of the Sith',
+                  'Return of the Jedi',
+                  'The Force Awakens',
+                  'The Last Jedi',
+                  'The Rise of Skywalker'])
+     WITH ORDINALITY AS starwars(episode,film,watch)
+ORDER BY watch;
+/* # Output #
+ episode |          film           | watch
+---------+-------------------------+-------
+       4 | A New Hope              |     1
+       5 | The Empire Strikes Back |     2
+       1 | The Phantom Menace      |     3
+       2 | Attack of the Clones    |     4
+       3 | Revenge of the Sith     |     5
+       6 | Return of the Jedi      |     6
+       7 | The Force Awakens       |     7
+       8 | The Last Jedi           |     8
+       9 | The Rise of Skywalker   |     9
+(9 rows) */
+```
