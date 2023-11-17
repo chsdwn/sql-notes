@@ -2010,3 +2010,112 @@ ORDER BY watch;
        9 | The Rise of Skywalker   |     9
 (9 rows) */
 ```
+
+### 26. User-defined SQL functions (UDFs), atomic/table-generating
+
+```sql
+DROP FUNCTION IF EXISTS convert_roman_numerals(text);
+CREATE FUNCTION convert_roman_numerals(rn text) RETURNS int AS
+$$
+  SELECT nums.value
+  FROM (VALUES ('I', 1),
+               ('II', 2),
+               ('III', 3),
+               ('IV', 4),
+               ('V', 5),
+               ('VI', 6),
+               ('VII', 7),
+               ('VIII', 8),
+               ('IX', 9)) AS nums(roman, value)
+  WHERE nums.roman = rn
+$$
+LANGUAGE SQL IMMUTABLE;
+
+SELECT convert_roman_numerals('IV');
+/* # Output #
+ convert_roman_numerals
+------------------------
+                      4
+(1 row) */
+```
+
+```sql
+DROP TABLE IF EXISTS issue;
+CREATE TABLE issue (
+  id int GENERATED ALWAYS AS IDENTITY,
+  "when" timestamp);
+
+DROP FUNCTION IF EXISTS new_ID(text);
+CREATE FUNCTION new_ID(prefix text) RETURNS text AS
+$$
+  INSERT INTO issue(id,"when") VALUES
+    (DEFAULT, 'now'::timestamp)
+  RETURNING prefix || id::text
+$$
+LANGUAGE SQL VOLATILE; -- function is side-effecting
+
+TABLE issue;
+/* # Output #
+ id | when
+----+------
+(0 rows) */
+
+SELECT new_ID('customer') AS customer, d.species
+FROM dinosaurs AS d
+WHERE d.legs = 2;
+/* # Output #
+ customer  |    species
+-----------+---------------
+ customer1 | Ceratosaurus
+ customer2 | Deinonychus
+ customer3 | Microvenator
+ customer4 | Plateosaurus
+ customer5 | Spinosaurus
+ customer6 | Tyrannosaurus
+ customer7 | Velociraptor
+(7 rows) */
+
+TABLE issue;
+/* # Output #
+ id |            when
+----+----------------------------
+  1 | 2023-11-17 13:35:27.738654
+  2 | 2023-11-17 13:35:27.738654
+  3 | 2023-11-17 13:35:27.738654
+  4 | 2023-11-17 13:35:27.738654
+  5 | 2023-11-17 13:35:27.738654
+  6 | 2023-11-17 13:35:27.738654
+  7 | 2023-11-17 13:35:27.738654
+(7 rows) */
+```
+
+```sql
+CREATE OR REPLACE FUNCTION unnest2(xss anyarray)
+  RETURNS SETOF anyelement AS
+$$
+  SELECT xss[i][j]
+  FROM generate_subscripts(xss,1) _(i),
+       generate_subscripts(xss,2) __(j)
+  ORDER BY j, i
+$$
+LANGUAGE SQL IMMUTABLE;
+
+SELECT t.*
+FROM unnest2(array[array['a','b','c'],
+                   array['d','e','f'],
+                   array['x','y','z']])
+     WITH ORDINALITY AS t(elem,pos);
+/* # Output #
+ elem | pos
+------+-----
+ a    |   1
+ d    |   2
+ x    |   3
+ b    |   4
+ e    |   5
+ y    |   6
+ c    |   7
+ f    |   8
+ z    |   9
+(9 rows) */
+```
